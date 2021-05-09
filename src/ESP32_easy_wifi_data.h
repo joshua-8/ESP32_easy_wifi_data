@@ -19,10 +19,10 @@ boolean blockSimultaneousConnections = true;
 boolean debugPrint = true;
 
 #ifndef EWDmaxWifiSendBufSize
-#define EWDmaxWifiSendBufSize 32
+#define EWDmaxWifiSendBufSize 40
 #endif
 #ifndef EWDmaxWifiRecvBufSize
-#define EWDmaxWifiRecvBufSize 32
+#define EWDmaxWifiRecvBufSize 40
 #endif
 
 namespace {

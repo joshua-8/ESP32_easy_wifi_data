@@ -9,6 +9,10 @@ connectToNetwork	LITERAL2
 wifiRestartNotHotspot	LITERAL2
 signalLossTimeout	LITERAL2
 debugPrint	LITERAL2
+beClientNotServer	LITERAL2
+hotspotAddress	LITERAL2
+serverAddr	LITERAL2
+blockSimultaneousConnections	LITERAL2
 millisSinceMessage	KEYWORD2
 notTimedOut	KEYWORD2
 newData	KEYWORD2
