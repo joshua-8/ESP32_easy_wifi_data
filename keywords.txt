@@ -1,10 +1,12 @@
 EWD	KEYWORD1	DATA_TYPE
-ESP_easy_wifi_data	KEYWORD1	DATA_TYPE
+ESP32_easy_wifi_data	KEYWORD1	DATA_TYPE
 routerName	LITERAL2
 routerPass	LITERAL2
 APPass	LITERAL2
 wifiPort	LITERAL2
 APPort	LITERAL2
+APName	LITERAL2
+connDelay	LITERAL2
 connectToNetwork	LITERAL2
 wifiRestartNotHotspot	LITERAL2
 signalLossTimeout	LITERAL2

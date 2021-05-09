@@ -11,7 +11,9 @@ String routerName = " ";
 String routerPass = "-open-network-";
 String APPass = "password";
 int wifiPort = 25210;
+String APName = "ESP32";
 int APPort = 25210;
+unsigned short connDelay = 2000;
 boolean beClientNotServer = false;
 IPAddress hotspotAddress = IPAddress(10, 25, 21, 1);
 IPAddress serverAddr = IPAddress(10, 25, 21, 1);
@@ -28,7 +30,6 @@ boolean debugPrint = true;
 namespace {
     unsigned long lastMessageTimeMillis = 0;
     unsigned long lastSentMillis = 0;
-    char APName[9];
     WiFiUDP udp;
     boolean wifiConnected = false;
     boolean receivedNewData = false;
@@ -102,27 +103,32 @@ bool newData()
 
 void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
 {
+    if (debugPrint)
+        Serial.println("########## starting setupWifi()");
     sendCallback = _sendCP;
     recieveCallback = _recvCP;
     wifiConnected = false;
-    delay(1000);
     WiFi.disconnect(true);
-    sprintf(APName, "ESP%05d", wifiPort); // create SSID
     delay(1000);
     WiFi.onEvent(wifiEvent);
     if (connectToNetwork) {
+        if (debugPrint) {
+            Serial.print("connecting to network called: ");
+            Serial.print(routerName.c_str());
+            Serial.print("  with password: ");
+            Serial.println(routerPass.c_str());
+        }
         WiFi.mode(WIFI_STA);
-        if (strcmp(routerPass.c_str(), "-open-network-")) {
+        if (strcmp(routerPass.c_str(), "-open-network-") == 0) {
             WiFi.begin(routerName.c_str());
         } else {
             WiFi.begin(routerName.c_str(), routerPass.c_str());
         }
-        delay(2000);
-        for (int i = 0; i < 10; i++) {
-            if (wifiConnected) {
-                i = 10;
-            }
-            delay(1000);
+        delay(connDelay);
+        if (!wifiConnected) {
+            WiFi.disconnect();
+            WiFi.reconnect();
+            delay(connDelay * 2);
         }
     }
     if (!wifiConnected) {
@@ -136,13 +142,14 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
         if (debugPrint) {
             Serial.println("########## switching to wifi hotspot mode");
             Serial.print("             network name: ");
-            Serial.print(APName);
+            Serial.print(APName.c_str());
             Serial.print("  password: ");
-            Serial.print(APPass);
-            Serial.println("           ip address: 10.25.21.1");
+            Serial.print(APPass.c_str());
+            Serial.print("           ip address: ");
+            Serial.println(hotspotAddress);
         }
         delay(1000);
-        WiFi.softAP(APName, APPass.c_str(), 1, 0, 1);
+        WiFi.softAP(APName.c_str(), APPass.c_str(), 1, 0, 1);
         delay(1000);
         WiFi.softAPConfig(hotspotAddress, hotspotAddress, IPAddress(255, 255, 255, 0));
         delay(1000);
@@ -164,7 +171,7 @@ void runWifiCommunication()
         wifiIPLock = IPAddress(0, 0, 0, 0);
     }
     receivedNewData = false;
-    if (packetSize && packetSize <= EWDmaxWifiRecvBufSize) { //got a message
+    if (packetSize) { //got a message
         udp.read(recvdData, EWDmaxWifiRecvBufSize);
         udp.flush();
         if (!blockSimultaneousConnections || udp.remoteIP() == wifiIPLock || wifiIPLock == IPAddress(0, 0, 0, 0)) {
