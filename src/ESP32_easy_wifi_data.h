@@ -4,14 +4,18 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 namespace EWD {
-char* routerName = " ";
-char* routerPass = " ";
-char* APPass = "password";
+boolean connectToNetwork = false;
+boolean wifiRestartNotHotspot = false;
+int signalLossTimeout = 1000;
+String routerName = " ";
+String routerPass = "-open-network-";
+String APPass = "password";
 int wifiPort = 25210;
 int APPort = 25210;
-boolean connectToNetwork = false; //true=try to connect to router  false=go straight to hotspot mode
-boolean wifiRestartNotHotspot = false; //when connection issue, true=retry connection to router  false=fall back to hotspot
-int signalLossTimeout = 1000; //disable if no signal after this many milliseconds
+boolean beClientNotServer = false;
+IPAddress hotspotAddress = IPAddress(10, 25, 21, 1);
+IPAddress serverAddr = IPAddress(10, 25, 21, 1);
+boolean blockSimultaneousConnections = true;
 boolean debugPrint = true;
 
 #ifndef EWDmaxWifiSendBufSize
@@ -23,6 +27,7 @@ boolean debugPrint = true;
 
 namespace {
     unsigned long lastMessageTimeMillis = 0;
+    unsigned long lastSentMillis = 0;
     char APName[9];
     WiFiUDP udp;
     boolean wifiConnected = false;
@@ -45,20 +50,24 @@ namespace {
             wifiConnected = false;
             break;
         case SYSTEM_EVENT_STA_GOT_IP:
+            if (beClientNotServer) {
+                udp.begin(WiFi.localIP(), wifiPort);
+            } else {
+                udp.begin(wifiPort);
+            }
             if (debugPrint) {
                 Serial.print("########## wifi connected! IP address: ");
                 Serial.print(WiFi.localIP());
                 Serial.print(" wifiPort: ");
                 Serial.println(wifiPort);
             }
-            udp.begin(wifiPort);
             wifiConnected = true;
             break;
         case SYSTEM_EVENT_AP_START:
             if (!wifiConnected) {
+                udp.begin(APPort);
                 if (debugPrint)
                     Serial.println("########## wifi hotspot started");
-                udp.begin(APPort);
             }
             wifiConnected = true;
             break;
@@ -103,10 +112,10 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
     WiFi.onEvent(wifiEvent);
     if (connectToNetwork) {
         WiFi.mode(WIFI_STA);
-        if (strcmp(routerPass, "-open-network-")) {
-            WiFi.begin(routerName);
+        if (strcmp(routerPass.c_str(), "-open-network-")) {
+            WiFi.begin(routerName.c_str());
         } else {
-            WiFi.begin(routerName, routerPass);
+            WiFi.begin(routerName.c_str(), routerPass.c_str());
         }
         delay(2000);
         for (int i = 0; i < 10; i++) {
@@ -129,12 +138,13 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
             Serial.print("             network name: ");
             Serial.print(APName);
             Serial.print("  password: ");
-            Serial.println(APPass);
+            Serial.print(APPass);
+            Serial.println("           ip address: 10.25.21.1");
         }
         delay(1000);
-        WiFi.softAP(APName, APPass, 1, 0, 1);
+        WiFi.softAP(APName, APPass.c_str(), 1, 0, 1);
         delay(1000);
-        WiFi.softAPConfig(IPAddress(10, 25, 21, 1), IPAddress(10, 25, 21, 1), IPAddress(255, 255, 255, 0));
+        WiFi.softAPConfig(hotspotAddress, hotspotAddress, IPAddress(255, 255, 255, 0));
         delay(1000);
     }
     if (!wifiConnected && debugPrint) {
@@ -147,33 +157,53 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
 void runWifiCommunication()
 {
     int packetSize = udp.parsePacket();
-    if (udp.remoteIP() != IPAddress(0, 0, 0, 0) && wifiIPLock == IPAddress(0, 0, 0, 0)) {
+    if (blockSimultaneousConnections && udp.remoteIP() != IPAddress(0, 0, 0, 0) && wifiIPLock == IPAddress(0, 0, 0, 0)) {
         wifiIPLock = udp.remoteIP();
     }
-    if (millis() - lastMessageTimeMillis > signalLossTimeout) {
+    if (blockSimultaneousConnections && millis() - lastMessageTimeMillis > signalLossTimeout) {
         wifiIPLock = IPAddress(0, 0, 0, 0);
     }
     receivedNewData = false;
     if (packetSize && packetSize <= EWDmaxWifiRecvBufSize) { //got a message
         udp.read(recvdData, EWDmaxWifiRecvBufSize);
         udp.flush();
-        if (udp.remoteIP() == wifiIPLock || wifiIPLock == IPAddress(0, 0, 0, 0)) {
+        if (!blockSimultaneousConnections || udp.remoteIP() == wifiIPLock || wifiIPLock == IPAddress(0, 0, 0, 0)) {
             receivedNewData = true;
             lastMessageTimeMillis = millis();
+            lastSentMillis = millis();
             for (int i = 0; i < EWDmaxWifiRecvBufSize; i++) {
                 recvdData[i] = (byte)((int)(256 + recvdData[i]) % 256);
             }
             wifiArrayCounter = 0;
             recieveCallback();
+
             wifiArrayCounter = 0;
             sendCallback();
             numBytesToSend = min(wifiArrayCounter, EWDmaxWifiSendBufSize);
-            udp.beginPacket();
+            if (beClientNotServer) {
+                udp.beginPacket(serverAddr, wifiPort);
+            } else {
+                udp.beginPacket();
+            }
             for (byte i = 0; i < numBytesToSend; i++) {
                 udp.write(dataToSend[i]);
             }
             udp.endPacket();
         }
+    } else if (beClientNotServer && millis() - lastSentMillis > signalLossTimeout) {
+        lastSentMillis = millis();
+        wifiArrayCounter = 0;
+        sendCallback();
+        numBytesToSend = min(wifiArrayCounter, EWDmaxWifiSendBufSize);
+        if (beClientNotServer) {
+            udp.beginPacket(serverAddr, wifiPort);
+        } else {
+            udp.beginPacket();
+        }
+        for (byte i = 0; i < numBytesToSend; i++) {
+            udp.write(dataToSend[i]);
+        }
+        udp.endPacket();
     }
 }
 
