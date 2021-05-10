@@ -4,8 +4,8 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 namespace EWD {
-boolean connectToNetwork = false;
-boolean wifiRestartNotHotspot = false;
+boolean connectToNetwork = true;
+boolean wifiRestartNotHotspot = true;
 int signalLossTimeout = 1000;
 String routerName = " ";
 String routerPass = "-open-network-";
@@ -21,10 +21,10 @@ boolean blockSimultaneousConnections = true;
 boolean debugPrint = true;
 
 #ifndef EWDmaxWifiSendBufSize
-#define EWDmaxWifiSendBufSize 40
+#define EWDmaxWifiSendBufSize 41
 #endif
 #ifndef EWDmaxWifiRecvBufSize
-#define EWDmaxWifiRecvBufSize 40
+#define EWDmaxWifiRecvBufSize 41
 #endif
 
 namespace {
@@ -132,8 +132,10 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
         }
     }
     if (!wifiConnected) {
-        if (debugPrint)
-            Serial.println("########## connection to router failed/skipped");
+        if (debugPrint) {
+            if (connectToNetwork)
+                Serial.println("########## connection to router failed");
+        }
         WiFi.disconnect(true);
         if (wifiRestartNotHotspot && connectToNetwork) {
             ESP.restart();
@@ -144,9 +146,11 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
             Serial.print("             network name: ");
             Serial.print(APName.c_str());
             Serial.print("  password: ");
-            Serial.print(APPass.c_str());
+            Serial.println(APPass.c_str());
             Serial.print("           ip address: ");
-            Serial.println(hotspotAddress);
+            Serial.print(hotspotAddress);
+            Serial.print("  port: ");
+            Serial.println(APPort);
         }
         delay(1000);
         WiFi.softAP(APName.c_str(), APPass.c_str(), 1, 0, 1);
