@@ -36,7 +36,8 @@ void loop()
 {
     EWD::runWifiCommunication(); //call in loop, as often as possible in order to stay connected
     EWD::millisSinceMessage(); //returns how many milliseconds it has been since a message was last recieved
-    EWD::notTimedOut(); //returns millisSinceMessage<signalLossTimeout, use to disable your robot if it loses connection
+    EWD::notTimedOut(); //returns millisSinceMessage<signalLossTimeout
+    EWD::timedOut(); //returns millisSinceMessage>=signalLossTimeout, use to disable your robot if it loses connection
     EWD::newData(); //returns true if new data was recieved this loop
 }
 void dataRecieveCallback()
