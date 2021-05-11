@@ -17,6 +17,7 @@ serverAddr	LITERAL2
 blockSimultaneousConnections	LITERAL2
 millisSinceMessage	KEYWORD2
 notTimedOut	KEYWORD2
+timedOut	KEYWORD2
 newData	KEYWORD2
 setupWifi	KEYWORD2
 runWifiCommunication	KEYWORD2

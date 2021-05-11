@@ -96,6 +96,10 @@ bool notTimedOut()
 {
     return millis() - lastMessageTimeMillis < signalLossTimeout;
 }
+bool timedOut()
+{
+    return millis() - lastMessageTimeMillis >= signalLossTimeout;
+}
 bool newData()
 {
     return receivedNewData;
