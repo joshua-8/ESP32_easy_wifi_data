@@ -14,7 +14,7 @@ void setup()
     Serial.begin(9600);
 
     EWD::connectToNetwork = true; //true=try to connect to router  false=go straight to hotspot mode (default: true)
-    EWD::wifiRestartNotHotspot = true; //when connection issue, true=retry connection to router  false=fall back to hotspot (default: true)
+    EWD::wifiRestartNotHotspot = true; //when connection issue and connectToNetwork=true, true=retry connection to router  false=fall back to hotspot (default: true)
     EWD::signalLossTimeout = 1000; //disable if no signal after this many milliseconds (default: 1000)
     EWD::routerName = " "; //name of the wifi network you want to connect to
     EWD::routerPass = "-open-network-"; //password for your wifi network (enter "-open-network-" if the network has no password) (default: -open-network-)
