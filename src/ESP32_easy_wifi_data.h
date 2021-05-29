@@ -19,6 +19,7 @@ IPAddress hotspotAddress = IPAddress(10, 25, 21, 1);
 IPAddress serverAddr = IPAddress(10, 25, 21, 1);
 boolean blockSimultaneousConnections = true;
 boolean debugPrint = true;
+unsigned long reconnectionMillis = 0;
 
 #ifndef EWDmaxWifiSendBufSize
 #define EWDmaxWifiSendBufSize 41
@@ -47,8 +48,12 @@ namespace {
         switch (event) {
         case SYSTEM_EVENT_STA_DISCONNECTED:
             if (debugPrint)
-                Serial.println("########## router disconnected");
+                Serial.println("#event#### router disconnected");
             wifiConnected = false;
+            break;
+        case SYSTEM_EVENT_STA_CONNECTED:
+            if (debugPrint)
+                Serial.println("#event#### connected to router");
             break;
         case SYSTEM_EVENT_STA_GOT_IP:
             if (beClientNotServer) {
@@ -57,7 +62,7 @@ namespace {
                 udp.begin(wifiPort);
             }
             if (debugPrint) {
-                Serial.print("########## wifi connected! IP address: ");
+                Serial.print("#event#### wifi connected! IP address: ");
                 Serial.print(WiFi.localIP());
                 Serial.print(" wifiPort: ");
                 Serial.println(wifiPort);
@@ -68,18 +73,18 @@ namespace {
             if (!wifiConnected) {
                 udp.begin(APPort);
                 if (debugPrint)
-                    Serial.println("########## wifi hotspot started");
+                    Serial.println("#event#### wifi hotspot started");
             }
             wifiConnected = true;
             break;
         case SYSTEM_EVENT_AP_STACONNECTED:
             if (debugPrint)
-                Serial.println("########## client connected to hotspot");
+                Serial.println("#event#### client connected to hotspot");
             wifiConnected = true;
             break;
         case SYSTEM_EVENT_AP_STADISCONNECTED:
             if (debugPrint)
-                Serial.println("########## client disconnected from hotspot");
+                Serial.println("#event#### client disconnected from hotspot");
             wifiConnected = false;
             break;
         default:
@@ -117,10 +122,15 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
     WiFi.onEvent(wifiEvent);
     if (connectToNetwork) {
         if (debugPrint) {
-            Serial.print("connecting to network called: ");
+            Serial.print("########## connecting to network called: ");
             Serial.print(routerName.c_str());
-            Serial.print("  with password: ");
-            Serial.println(routerPass.c_str());
+            if (strcmp(routerPass.c_str(), "-open-network-") == 0) {
+                Serial.print("  with no password (open network) ");
+            } else {
+                Serial.print("  with password: ");
+                Serial.print(routerPass.c_str());
+            }
+            Serial.println();
         }
         WiFi.mode(WIFI_STA);
         if (strcmp(routerPass.c_str(), "-open-network-") == 0) {
@@ -129,11 +139,14 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
             WiFi.begin(routerName.c_str(), routerPass.c_str());
         }
         delay(connDelay);
-        if (!wifiConnected) {
+        for (byte i = 0; i < 2 && WiFi.status() != WL_CONNECTED; i++) {
             WiFi.disconnect();
             WiFi.reconnect();
-            delay(connDelay * 2);
+            delay(connDelay / 2);
         }
+    }
+    for (byte i = 0; connectToNetwork && i < 4 && !wifiConnected; i++) {
+        delay(connDelay / 2);
     }
     if (!wifiConnected) {
         if (debugPrint) {
@@ -144,7 +157,6 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
         if (wifiRestartNotHotspot && connectToNetwork) {
             ESP.restart();
         }
-        WiFi.mode(WIFI_AP);
         if (debugPrint) {
             Serial.println("########## switching to wifi hotspot mode");
             Serial.print("             network name: ");
@@ -156,6 +168,7 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
             Serial.print("  port: ");
             Serial.println(APPort);
         }
+        WiFi.mode(WIFI_AP);
         delay(1000);
         WiFi.softAP(APName.c_str(), APPass.c_str(), 1, 0, 1);
         delay(1000);
@@ -171,6 +184,14 @@ void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
 
 void runWifiCommunication()
 {
+    if (connectToNetwork && !wifiConnected && WiFi.status() != WL_CONNECTED && millis() - lastMessageTimeMillis > signalLossTimeout * 2 && millis() - reconnectionMillis > connDelay * 2) {
+        if (debugPrint)
+            Serial.println("########## trying to reconnect to lost network");
+        WiFi.disconnect();
+        WiFi.reconnect();
+        reconnectionMillis = millis();
+    }
+
     int packetSize = udp.parsePacket();
     if (blockSimultaneousConnections && udp.remoteIP() != IPAddress(0, 0, 0, 0) && wifiIPLock == IPAddress(0, 0, 0, 0)) {
         wifiIPLock = udp.remoteIP();
@@ -307,6 +328,5 @@ void sendFl(float msg)
         wifiArrayCounter++;
     }
 }
-
 };
 #endif
