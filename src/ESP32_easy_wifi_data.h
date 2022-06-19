@@ -144,8 +144,7 @@ void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
     receiveCallback = _recvCB;
 
     if (mode == Mode::createAP) {
-        if (debugPrint)
-            Serial.printf("[EWD] creating AP called %s with password %s \n", APName, APPassword);
+        Serial.printf("[EWD] creating AP called %s with password %s \n", APName, APPassword);
 
         WiFi.softAP(APName, APPassword);
     }
