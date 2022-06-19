@@ -5,10 +5,10 @@
 
 Simple library for sending and receiving booleans, bytes, integers, and float variables over UDP. The esp32 can be connected to a wifi network or create its own hotspot.
 
- If you set up port forwarding on your wifi router you can control your esp32 from anywhere!
+If you set up port forwarding on your wifi router you can control your esp32 from anywhere!
 
-## Usage:
-see examples: https://github.com/joshua-8/ESP32_easy_wifi_data/tree/master/examples
+Note: Communication with this library is not secured, don't use it to control anything dangerous or private.
+
 
 
 [This](https://github.com/RCMgames/RCMDS) is a program that can be used for sending data to this library from a computer or Android phone.

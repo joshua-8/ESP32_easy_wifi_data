@@ -1,25 +1,28 @@
 #ifndef _ESP32_easy_wifi_data_H_
 #define _ESP32_easy_wifi_data_H_
+
 #include <Arduino.h>
+
 #include <WiFi.h>
 #include <WiFiUdp.h>
+
 namespace EWD {
-boolean connectToNetwork = true;
-boolean wifiRestartNotHotspot = true;
+
+WiFiUDP udp;
+
+enum Mode { createAP,
+    connectToNetwork };
+
+Mode mode = connectToNetwork;
 int signalLossTimeout = 1000;
-String routerName = " ";
-String routerPass = "-open-network-";
-String APPass = "password";
-int wifiPort = 25210;
-String APName = "ESP32";
-int APPort = 25210;
-unsigned short connDelay = 2000;
-boolean beClientNotServer = false;
-IPAddress hotspotAddress = IPAddress(10, 25, 21, 1);
-IPAddress serverAddr = IPAddress(10, 25, 21, 1);
+const char* APName = "esp32";
+const char* APPassword = "password";
+const char* routerName = "ssid";
+const char* routerPassword = "password";
 boolean blockSimultaneousConnections = true;
-boolean debugPrint = true;
-unsigned long reconnectionMillis = 0;
+boolean debugPrint = false;
+int APPort = 25210;
+int routerPort = 25210;
 
 #ifndef EWDmaxWifiSendBufSize
 #define EWDmaxWifiSendBufSize 41
@@ -27,219 +30,164 @@ unsigned long reconnectionMillis = 0;
 #ifndef EWDmaxWifiRecvBufSize
 #define EWDmaxWifiRecvBufSize 41
 #endif
-
 namespace {
     unsigned long lastMessageTimeMillis = 0;
     unsigned long lastSentMillis = 0;
-    WiFiUDP udp;
     boolean wifiConnected = false;
     boolean receivedNewData = false;
     byte recvdData[EWDmaxWifiRecvBufSize] = { 0 };
     byte dataToSend[EWDmaxWifiSendBufSize] = { 0 };
-    int numBytesToSend = 0;
     int wifiArrayCounter = 0;
     IPAddress wifiIPLock = IPAddress(0, 0, 0, 0);
 
     void (*sendCallback)(void);
-    void (*recieveCallback)(void);
+    void (*receiveCallback)(void);
 
-    void wifiEvent(WiFiEvent_t event)
+    void WiFiEvent(WiFiEvent_t event)
     {
+
+        if (debugPrint)
+            Serial.printf("[EWD]  event %d:  ", event);
+
         switch (event) {
-        case SYSTEM_EVENT_STA_DISCONNECTED:
+        case ARDUINO_EVENT_WIFI_READY:
             if (debugPrint)
-                Serial.println("#event#### router disconnected");
-            wifiConnected = false;
+                Serial.println("WiFi interface ready");
             break;
-        case SYSTEM_EVENT_STA_CONNECTED:
+        case ARDUINO_EVENT_WIFI_STA_START:
             if (debugPrint)
-                Serial.println("#event#### connected to router");
+                Serial.println("WiFi client started");
             break;
-        case SYSTEM_EVENT_STA_GOT_IP:
-            if (beClientNotServer) {
-                udp.begin(WiFi.localIP(), wifiPort);
-            } else {
-                udp.begin(wifiPort);
-            }
-            if (debugPrint) {
-                Serial.print("#event#### wifi connected! IP address: ");
-                Serial.print(WiFi.localIP());
-                Serial.print(" wifiPort: ");
-                Serial.println(wifiPort);
-            }
-            wifiConnected = true;
+        case ARDUINO_EVENT_WIFI_STA_STOP:
+            if (debugPrint)
+                Serial.println("WiFi clients stopped");
             break;
-        case SYSTEM_EVENT_AP_START:
-            if (!wifiConnected) {
-                udp.begin(APPort);
+        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+            if (debugPrint)
+                Serial.println("Connected to access point");
+            break;
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            if (debugPrint)
+                Serial.println("Disconnected from WiFi access point");
+
+            if (wifiConnected) {
                 if (debugPrint)
-                    Serial.println("#event#### wifi hotspot started");
+                    Serial.println("[EWD]  Attempting to reconnect");
+                WiFi.reconnect();
             }
-            wifiConnected = true;
-            break;
-        case SYSTEM_EVENT_AP_STACONNECTED:
-            if (debugPrint)
-                Serial.println("#event#### client connected to hotspot");
-            wifiConnected = true;
-            break;
-        case SYSTEM_EVENT_AP_STADISCONNECTED:
-            if (debugPrint)
-                Serial.println("#event#### client disconnected from hotspot");
             wifiConnected = false;
+            break;
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            if (!debugPrint)
+                Serial.printf("[EWD]  ", event);
+            Serial.print("Obtained IP address: ");
+            Serial.println(WiFi.localIP());
+            wifiConnected = true;
+            udp.begin(routerPort);
+            break;
+        case ARDUINO_EVENT_WIFI_AP_START:
+            if (debugPrint)
+                Serial.println("WiFi access point started");
+
+            udp.begin(APPort);
+            if (debugPrint)
+                Serial.println("[EWD]  UDP begin - AP mode");
+            wifiConnected = true;
+
+            break;
+        case ARDUINO_EVENT_WIFI_AP_STOP: // not sure what causes this, if you see it, it's probably bad, try restarting the esp32
+            if (debugPrint)
+                Serial.println("WiFi access point stopped");
+            break;
+        case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+            if (debugPrint)
+                Serial.println("Client connected");
+            break;
+        case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+            if (debugPrint)
+                Serial.println("Client disconnected");
+            break;
+        case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
+            if (debugPrint)
+                Serial.println("Assigned IP address to client");
             break;
         default:
             break;
         }
     }
-};
 
-unsigned long millisSinceMessage()
-{
-    return millis() - lastMessageTimeMillis;
-}
-bool notTimedOut()
-{
-    return millis() - lastMessageTimeMillis < signalLossTimeout;
-}
-bool timedOut()
-{
-    return millis() - lastMessageTimeMillis >= signalLossTimeout;
-}
-bool newData()
-{
-    return receivedNewData;
-}
+    void sendMessage()
+    {
+        lastSentMillis = millis();
+        wifiArrayCounter = 0;
+        sendCallback();
 
-void setupWifi(void (*_recvCP)(void), void (*_sendCP)(void))
+        udp.beginPacket();
+        for (byte i = 0; i < min(wifiArrayCounter, EWDmaxWifiSendBufSize); i++) {
+            udp.write(dataToSend[i]);
+        }
+        udp.endPacket();
+    }
+
+} // end of private namespace
+
+void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 {
+    WiFi.disconnect(true, true);
+    delay(100);
+
+    WiFi.onEvent(WiFiEvent);
+
     if (debugPrint)
-        Serial.println("########## starting setupWifi()");
-    sendCallback = _sendCP;
-    recieveCallback = _recvCP;
-    wifiConnected = false;
-    WiFi.disconnect(true);
-    delay(1000);
-    WiFi.onEvent(wifiEvent);
-    if (connectToNetwork) {
-        if (debugPrint) {
-            Serial.print("########## connecting to network called: ");
-            Serial.print(routerName.c_str());
-            if (strcmp(routerPass.c_str(), "-open-network-") == 0) {
-                Serial.print("  with no password (open network) ");
-            } else {
-                Serial.print("  with password: ");
-                Serial.print(routerPass.c_str());
-            }
-            Serial.println();
-        }
-        WiFi.mode(WIFI_STA);
-        if (strcmp(routerPass.c_str(), "-open-network-") == 0) {
-            WiFi.begin(routerName.c_str());
-        } else {
-            WiFi.begin(routerName.c_str(), routerPass.c_str());
-        }
-        delay(connDelay);
-        for (byte i = 0; i < 2 && WiFi.status() != WL_CONNECTED; i++) {
-            WiFi.disconnect();
-            WiFi.reconnect();
-            delay(connDelay / 2);
-        }
+        Serial.println("[EWD] starting setupWifi()");
+    sendCallback = _sendCB;
+    receiveCallback = _recvCB;
+
+    if (mode == Mode::createAP) {
+        if (debugPrint)
+            Serial.printf("[EWD] creating AP called %s with password %s \n", APName, APPassword);
+
+        WiFi.softAP(APName, APPassword);
     }
-    for (byte i = 0; connectToNetwork && i < 4 && !wifiConnected; i++) {
-        delay(connDelay / 2);
+    if (mode == Mode::connectToNetwork) {
+        Serial.printf("[EWD]  Attempting to connect to %s with password %s \n", routerName, routerPassword);
+        WiFi.begin(routerName, routerPassword);
     }
-    if (!wifiConnected) {
-        if (debugPrint) {
-            if (connectToNetwork)
-                Serial.println("########## connection to router failed");
-        }
-        WiFi.disconnect(true);
-        if (wifiRestartNotHotspot && connectToNetwork) {
-            ESP.restart();
-        }
-        if (debugPrint) {
-            Serial.println("########## switching to wifi hotspot mode");
-            Serial.print("             network name: ");
-            Serial.print(APName.c_str());
-            Serial.print("  password: ");
-            Serial.println(APPass.c_str());
-            Serial.print("           ip address: ");
-            Serial.print(hotspotAddress);
-            Serial.print("  port: ");
-            Serial.println(APPort);
-        }
-        WiFi.mode(WIFI_AP);
-        delay(1000);
-        WiFi.softAP(APName.c_str(), APPass.c_str(), 1, 0, 1);
-        delay(1000);
-        WiFi.softAPConfig(hotspotAddress, hotspotAddress, IPAddress(255, 255, 255, 0));
-        delay(1000);
-    }
-    if (!wifiConnected && debugPrint) {
-        Serial.println("########## wifi malfunction, try reboot");
-    }
-    if (debugPrint)
-        Serial.println("########## wifi setup complete.");
 }
 
 void runWifiCommunication()
 {
-    if (connectToNetwork && !wifiConnected && WiFi.status() != WL_CONNECTED && millis() - lastMessageTimeMillis > signalLossTimeout * 2 && millis() - reconnectionMillis > connDelay * 2) {
-        if (debugPrint)
-            Serial.println("########## trying to reconnect to lost network");
-        WiFi.disconnect();
-        WiFi.reconnect();
-        reconnectionMillis = millis();
-    }
+    receivedNewData = false;
 
+    if (!wifiConnected) {
+        return;
+    }
     int packetSize = udp.parsePacket();
+
     if (blockSimultaneousConnections && udp.remoteIP() != IPAddress(0, 0, 0, 0) && wifiIPLock == IPAddress(0, 0, 0, 0)) {
-        wifiIPLock = udp.remoteIP();
+        wifiIPLock = udp.remoteIP(); // lock
     }
     if (blockSimultaneousConnections && millis() - lastMessageTimeMillis > signalLossTimeout) {
-        wifiIPLock = IPAddress(0, 0, 0, 0);
+        wifiIPLock = IPAddress(0, 0, 0, 0); // unlock
     }
-    receivedNewData = false;
-    if (packetSize) { //got a message
+
+    if (packetSize) { // got a message
         udp.read(recvdData, EWDmaxWifiRecvBufSize);
         udp.flush();
-        if (!blockSimultaneousConnections || udp.remoteIP() == wifiIPLock || wifiIPLock == IPAddress(0, 0, 0, 0)) {
-            receivedNewData = true;
-            lastMessageTimeMillis = millis();
-            lastSentMillis = millis();
-            for (int i = 0; i < EWDmaxWifiRecvBufSize; i++) {
-                recvdData[i] = (byte)((int)(256 + recvdData[i]) % 256);
-            }
-            wifiArrayCounter = 0;
-            recieveCallback();
 
-            wifiArrayCounter = 0;
-            sendCallback();
-            numBytesToSend = min(wifiArrayCounter, EWDmaxWifiSendBufSize);
-            if (beClientNotServer) {
-                udp.beginPacket(serverAddr, wifiPort);
-            } else {
-                udp.beginPacket();
-            }
-            for (byte i = 0; i < numBytesToSend; i++) {
-                udp.write(dataToSend[i]);
-            }
-            udp.endPacket();
+        if (blockSimultaneousConnections && udp.remoteIP() != wifiIPLock && wifiIPLock != IPAddress(0, 0, 0, 0)) {
+            return; // block other IP addresses
         }
-    } else if (beClientNotServer && millis() - lastSentMillis > signalLossTimeout) {
-        lastSentMillis = millis();
+
+        receivedNewData = true;
+        lastMessageTimeMillis = millis();
+        for (int i = 0; i < EWDmaxWifiRecvBufSize; i++) {
+            recvdData[i] = (byte)((int)(256 + recvdData[i]) % 256);
+        }
         wifiArrayCounter = 0;
-        sendCallback();
-        numBytesToSend = min(wifiArrayCounter, EWDmaxWifiSendBufSize);
-        if (beClientNotServer) {
-            udp.beginPacket(serverAddr, wifiPort);
-        } else {
-            udp.beginPacket();
-        }
-        for (byte i = 0; i < numBytesToSend; i++) {
-            udp.write(dataToSend[i]);
-        }
-        udp.endPacket();
+        receiveCallback();
+
+        sendMessage();
     }
 }
 
@@ -257,12 +205,13 @@ byte recvBy()
     return msg;
 }
 
+//  great reference on unions, which make this code work: https://www.mcgurrin.info/robots/127/
 int recvIn()
 { // return int from four bytes starting at pos position in recvdData (esp32s use 4 byte ints)
     union { // this lets us translate between two variable types (equal size, but one's four bytes in an array, and one's a four byte int)  Reference for unions: https://www.mcgurrin.info/robots/127/
         byte b[4];
         int v;
-    } d; // d is the union, d.b acceses the byte array, d.v acceses the int
+    } d; // d is the union, d.b accesses the byte array, d.v accesses the int
 
     for (int i = 0; i < 4; i++) {
         d.b[i] = recvdData[min(wifiArrayCounter, EWDmaxWifiRecvBufSize - 1)];
@@ -277,7 +226,7 @@ float recvFl()
     union { // this lets us translate between two variable types (equal size, but one's 4 bytes in an array, and one's a 4 byte float) Reference for unions: https://www.mcgurrin.info/robots/127/
         byte b[4];
         float v;
-    } d; // d is the union, d.b acceses the byte array, d.v acceses the float
+    } d; // d is the union, d.b accesses the byte array, d.v accesses the float
 
     for (int i = 0; i < 4; i++) {
         d.b[i] = recvdData[min(wifiArrayCounter, EWDmaxWifiRecvBufSize - 1)];
@@ -288,23 +237,23 @@ float recvFl()
 }
 
 void sendBl(boolean msg)
-{ // add a boolean to the tosendData array
+{ // add a boolean to the dataToSend array
     dataToSend[min(wifiArrayCounter, EWDmaxWifiSendBufSize - 1)] = msg;
     wifiArrayCounter++;
 }
 
 void sendBy(byte msg)
-{ // add a byte to the tosendData array
+{ // add a byte to the dataToSend array
     dataToSend[min(wifiArrayCounter, EWDmaxWifiSendBufSize - 1)] = msg;
     wifiArrayCounter++;
 }
 
 void sendIn(int msg)
-{ // add an int to the tosendData array (four bytes, esp32s use 4 byte ints)
+{ // add an int to the dataToSend array (four bytes, esp32s use 4 byte ints)
     union {
         byte b[4];
         int v;
-    } d; // d is the union, d.b acceses the byte array, d.v acceses the int (equal size, but one's 4 bytes in an array, and one's a 4 byte int Reference for unions: https://www.mcgurrin.info/robots/127/
+    } d; // d is the union, d.b accesses the byte array, d.v accesses the int (equal size, but one's 4 bytes in an array, and one's a 4 byte int Reference for unions: https://www.mcgurrin.info/robots/127/
 
     d.v = msg; // put the value into the union as an int
 
@@ -315,11 +264,11 @@ void sendIn(int msg)
 }
 
 void sendFl(float msg)
-{ // add a float to the tosendData array (four bytes)
+{ // add a float to the dataToSend array (four bytes)
     union { // this lets us translate between two variables (equal size, but one's 4 bytes in an array, and one's a 4 byte float Reference for unions: https://www.mcgurrin.info/robots/127/
         byte b[4];
         float v;
-    } d; // d is the union, d.b acceses the byte array, d.v acceses the float
+    } d; // d is the union, d.b accesses the byte array, d.v accesses the float
 
     d.v = msg;
 
@@ -328,5 +277,26 @@ void sendFl(float msg)
         wifiArrayCounter++;
     }
 }
+
+unsigned long millisSinceMessage()
+{
+    return millis() - lastMessageTimeMillis;
+}
+bool notTimedOut()
+{
+    return millis() - lastMessageTimeMillis < signalLossTimeout;
+}
+bool timedOut()
+{
+    return millis() - lastMessageTimeMillis >= signalLossTimeout;
+}
+bool newData()
+{
+    return receivedNewData;
+}
+bool getWifiConnected()
+{
+    return wifiConnected;
+}
 };
-#endif
+#endif // include guard
