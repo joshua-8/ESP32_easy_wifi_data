@@ -1,8 +1,7 @@
 /*
     An example for ESP32_easy_wifi_data library
     https://github.com/joshua-8/ESP32_easy_wifi_data
-    This example shows every option and function of the library.
-    THIS EXAMPLE IS NOT MEANT TO BE RUN AS IS.
+    This example shows every option and function of the library but is not meant to do anything useful if run as is.
     by joshua-8, 2021-2022, MIT License
 */
 #include <Arduino.h>
