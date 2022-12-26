@@ -15,14 +15,15 @@ enum Mode { createAP,
 
 Mode mode = connectToNetwork;
 int signalLossTimeout = 1000;
-const char* APName = "esp32";
-const char* APPassword = "password";
 const char* routerName = "ssid";
 const char* routerPassword = "password";
+const char* APName = "esp32";
+const char* APPassword = "password";
+int routerPort = 25210;
+int APPort = 25210;
+
 boolean blockSimultaneousConnections = true;
 boolean debugPrint = false;
-int APPort = 25210;
-int routerPort = 25210;
 
 #ifndef EWDmaxWifiSendBufSize
 #define EWDmaxWifiSendBufSize 41
@@ -30,106 +31,103 @@ int routerPort = 25210;
 #ifndef EWDmaxWifiRecvBufSize
 #define EWDmaxWifiRecvBufSize 41
 #endif
-namespace {
-    unsigned long lastMessageTimeMillis = 0;
-    unsigned long lastSentMillis = 0;
-    boolean wifiConnected = false;
-    boolean receivedNewData = false;
-    byte recvdData[EWDmaxWifiRecvBufSize] = { 0 };
-    byte dataToSend[EWDmaxWifiSendBufSize] = { 0 };
-    int wifiArrayCounter = 0;
-    IPAddress wifiIPLock = IPAddress(0, 0, 0, 0);
+unsigned long lastMessageTimeMillis = 0;
+unsigned long lastSentMillis = 0;
+boolean wifiConnected = false;
+boolean receivedNewData = false;
+byte recvdData[EWDmaxWifiRecvBufSize] = { 0 };
+byte dataToSend[EWDmaxWifiSendBufSize] = { 0 };
+int wifiArrayCounter = 0;
+IPAddress wifiIPLock = IPAddress(0, 0, 0, 0);
 
-    void (*sendCallback)(void);
-    void (*receiveCallback)(void);
+void (*sendCallback)(void);
+void (*receiveCallback)(void);
 
-    void WiFiEvent(WiFiEvent_t event)
-    {
+void WiFiEvent(WiFiEvent_t event)
+{
 
+    if (debugPrint)
+        Serial.printf("[EWD]  event %d:  ", event);
+
+    switch (event) {
+    case ARDUINO_EVENT_WIFI_READY:
+        if (debugPrint)
+            Serial.println("WiFi interface ready");
+        break;
+    case ARDUINO_EVENT_WIFI_STA_START:
+        if (debugPrint)
+            Serial.println("WiFi client started");
+        break;
+    case ARDUINO_EVENT_WIFI_STA_STOP:
+        if (debugPrint)
+            Serial.println("WiFi clients stopped");
+        break;
+    case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+        if (debugPrint)
+            Serial.println("Connected to access point");
+        break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+        if (debugPrint)
+            Serial.println("Disconnected from WiFi access point");
+
+        if (wifiConnected) {
+            if (debugPrint)
+                Serial.println("[EWD]  Attempting to reconnect");
+            WiFi.reconnect();
+        }
+        wifiConnected = false;
+        break;
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
         if (debugPrint)
             Serial.printf("[EWD]  event %d:  ", event);
+        Serial.print("Obtained IP address: ");
+        Serial.println(WiFi.localIP());
+        wifiConnected = true;
+        udp.begin(routerPort);
+        break;
+    case ARDUINO_EVENT_WIFI_AP_START:
+        if (debugPrint)
+            Serial.println("WiFi access point started");
 
-        switch (event) {
-        case ARDUINO_EVENT_WIFI_READY:
-            if (debugPrint)
-                Serial.println("WiFi interface ready");
-            break;
-        case ARDUINO_EVENT_WIFI_STA_START:
-            if (debugPrint)
-                Serial.println("WiFi client started");
-            break;
-        case ARDUINO_EVENT_WIFI_STA_STOP:
-            if (debugPrint)
-                Serial.println("WiFi clients stopped");
-            break;
-        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
-            if (debugPrint)
-                Serial.println("Connected to access point");
-            break;
-        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-            if (debugPrint)
-                Serial.println("Disconnected from WiFi access point");
+        udp.begin(APPort);
+        if (debugPrint)
+            Serial.println("[EWD]  UDP begin - AP mode");
+        wifiConnected = true;
 
-            if (wifiConnected) {
-                if (debugPrint)
-                    Serial.println("[EWD]  Attempting to reconnect");
-                WiFi.reconnect();
-            }
-            wifiConnected = false;
-            break;
-        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
-            if (!debugPrint)
-                Serial.printf("[EWD]  ", event);
-            Serial.print("Obtained IP address: ");
-            Serial.println(WiFi.localIP());
-            wifiConnected = true;
-            udp.begin(routerPort);
-            break;
-        case ARDUINO_EVENT_WIFI_AP_START:
-            if (debugPrint)
-                Serial.println("WiFi access point started");
-
-            udp.begin(APPort);
-            if (debugPrint)
-                Serial.println("[EWD]  UDP begin - AP mode");
-            wifiConnected = true;
-
-            break;
-        case ARDUINO_EVENT_WIFI_AP_STOP: // not sure what causes this, if you see it, it's probably bad, try restarting the esp32
-            if (debugPrint)
-                Serial.println("WiFi access point stopped");
-            break;
-        case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
-            if (debugPrint)
-                Serial.println("Client connected");
-            break;
-        case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
-            if (debugPrint)
-                Serial.println("Client disconnected");
-            break;
-        case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
-            if (debugPrint)
-                Serial.println("Assigned IP address to client");
-            break;
-        default:
-            break;
-        }
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STOP: // not sure what causes this, if you see it, it's probably bad, try restarting the esp32
+        if (debugPrint)
+            Serial.println("WiFi access point stopped");
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
+        if (debugPrint)
+            Serial.println("Client connected");
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
+        if (debugPrint)
+            Serial.println("Client disconnected");
+        break;
+    case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
+        if (debugPrint)
+            Serial.println("Assigned IP address to client");
+        break;
+    default:
+        break;
     }
+}
 
-    void sendMessage()
-    {
-        lastSentMillis = millis();
-        wifiArrayCounter = 0;
-        sendCallback();
+void sendMessage()
+{
+    lastSentMillis = millis();
+    wifiArrayCounter = 0;
+    sendCallback();
 
-        udp.beginPacket();
-        for (byte i = 0; i < min(wifiArrayCounter, EWDmaxWifiSendBufSize); i++) {
-            udp.write(dataToSend[i]);
-        }
-        udp.endPacket();
+    udp.beginPacket();
+    for (byte i = 0; i < min(wifiArrayCounter, EWDmaxWifiSendBufSize); i++) {
+        udp.write(dataToSend[i]);
     }
-
-} // end of private namespace
+    udp.endPacket();
+}
 
 void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 {
@@ -149,8 +147,13 @@ void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
         WiFi.softAP(APName, APPassword);
     }
     if (mode == Mode::connectToNetwork) {
-        Serial.printf("[EWD]  Attempting to connect to %s with password %s \n", routerName, routerPassword);
-        WiFi.begin(routerName, routerPassword);
+        if (strlen(routerPassword) < 1) {
+            Serial.printf("[EWD]  Attempting to connect to open network %s \n", routerName);
+            WiFi.begin(routerName);
+        } else {
+            Serial.printf("[EWD]  Attempting to connect to %s with password %s \n", routerName, routerPassword);
+            WiFi.begin(routerName, routerPassword);
+        }
     }
 }
 
@@ -247,6 +250,7 @@ void sendBy(byte msg)
     wifiArrayCounter++;
 }
 
+//  great reference on unions, which make this code work: https://www.mcgurrin.info/robots/127/
 void sendIn(int msg)
 { // add an int to the dataToSend array (four bytes, esp32s use 4 byte ints)
     union {
