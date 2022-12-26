@@ -6,8 +6,8 @@
 */
 #include <Arduino.h>
 
-#define EWDmaxWifiSendBufSize 10 // how many bytes will your outgoing message be? (boolean=1,byte=1,int=4,float=4) (remove this line to use the default of 41)
-#define EWDmaxWifiRecvBufSize 10 // how many bytes will your incoming message be? (boolean=1,byte=1,int=4,float=4) (remove this line to use the default of 41)
+#define EWDmaxWifiSendBufSize 41 // how many bytes will your outgoing message be? (boolean=1,byte=1,int=4,float=4) (remove this line to use the default of 41)
+#define EWDmaxWifiRecvBufSize 41 // how many bytes will your incoming message be? (boolean=1,byte=1,int=4,float=4) (remove this line to use the default of 41)
 #include <ESP32_easy_wifi_data.h> //https://github.com/joshua-8/ESP32_easy_wifi_data
 
 void setup()
@@ -23,7 +23,7 @@ void setup()
     EWD::routerPort = 25210; // what port the esp32 communicates on if connected to a wifi network (default: 25210)
     EWD::APPort = 25210; // what port the esp32 communicates on if it makes its own network (default 25210)
     EWD::blockSimultaneousConnections = true; // block more than one client from connecting at a time (default: true)
-    EWD::debugPrint = true; // print ip address and other information to the serial monitor (default: true)
+    EWD::debugPrint = false; // print ip address and other information to the serial monitor (default: false)
 
     EWD::setupWifi(dataReceiveCallback, dataSendCallback); // this function connects to wifi, it may take up to 10 seconds, give it the names of dataReceiveCallback, dataSendCallback (functions with data sending and data receiving commands)
 }

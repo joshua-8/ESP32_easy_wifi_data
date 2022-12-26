@@ -15,8 +15,8 @@ enum Mode { createAP,
 
 Mode mode = connectToNetwork;
 int signalLossTimeout = 1000;
-const char* routerName = "ssid";
-const char* routerPassword = "password";
+const char* routerName = " ";
+const char* routerPassword = "";
 const char* APName = "esp32";
 const char* APPassword = "password";
 int routerPort = 25210;
@@ -31,6 +31,8 @@ boolean debugPrint = false;
 #ifndef EWDmaxWifiRecvBufSize
 #define EWDmaxWifiRecvBufSize 41
 #endif
+
+// variables below this line should not be modified
 unsigned long lastMessageTimeMillis = 0;
 unsigned long lastSentMillis = 0;
 boolean wifiConnected = false;
