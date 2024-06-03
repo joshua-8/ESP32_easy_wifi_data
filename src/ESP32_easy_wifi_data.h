@@ -3,7 +3,12 @@
 
 #include <Arduino.h>
 
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
+#elif
 #include <WiFi.h>
+#else
+
 #include <WiFiUdp.h>
 
 namespace EWD {
