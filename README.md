@@ -9,6 +9,8 @@ If you set up port forwarding on your wifi router you can control your esp32 fro
 
 Note: Communication with this library is not secured, don't use it to control anything dangerous or private.
 
+Now works with ESP8266 chips too! (After Version 1.2.0)
 
+used by https://github.com/rcmgames/rcmv2 (hardware and software for small wifi controlled robots)
 
 [This](https://github.com/RCMgames/RCMDS) is a program that can be used for sending data to this library from a computer or Android phone.

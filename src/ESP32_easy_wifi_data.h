@@ -19,7 +19,7 @@ enum Mode { createAP,
     connectToNetwork };
 
 Mode mode = connectToNetwork;
-int signalLossTimeout = 1000;
+unsigned long signalLossTimeout = 1000;
 const char* routerName = " ";
 const char* routerPassword = "";
 const char* APName = "esp32";
@@ -49,6 +49,20 @@ IPAddress wifiIPLock = IPAddress(0, 0, 0, 0);
 
 void (*sendCallback)(void);
 void (*receiveCallback)(void);
+
+#ifdef ESP8266
+#define ARDUINO_EVENT_WIFI_READY 255 // no esp8266 equivalent
+#define ARDUINO_EVENT_WIFI_STA_START WIFI_EVENT_STAMODE_CONNECTED
+#define ARDUINO_EVENT_WIFI_STA_STOP 254
+#define ARDUINO_EVENT_WIFI_STA_CONNECTED 253
+#define ARDUINO_EVENT_WIFI_STA_DISCONNECTED WIFI_EVENT_STAMODE_DISCONNECTED
+#define ARDUINO_EVENT_WIFI_STA_GOT_IP WIFI_EVENT_STAMODE_GOT_IP
+#define ARDUINO_EVENT_WIFI_AP_START WIFI_EVENT_SOFTAPMODE_STACONNECTED
+#define ARDUINO_EVENT_WIFI_AP_STOP WIFI_EVENT_SOFTAPMODE_STADISCONNECTED
+#define ARDUINO_EVENT_WIFI_AP_STACONNECTED 252
+#define ARDUINO_EVENT_WIFI_AP_STADISCONNECTED 25
+#define ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED 2550
+#endif
 
 void WiFiEvent(WiFiEvent_t event)
 {
@@ -129,7 +143,11 @@ void sendMessage()
     wifiArrayCounter = 0;
     sendCallback();
 
+#ifdef ESP8266
+    udp.beginPacket(udp.remoteIP(), udp.remotePort());
+#else
     udp.beginPacket();
+#endif
     for (byte i = 0; i < min(wifiArrayCounter, EWDmaxWifiSendBufSize); i++) {
         udp.write(dataToSend[i]);
     }
