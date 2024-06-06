@@ -38,12 +38,6 @@ boolean debugPrint = false;
 #endif
 
 // variables below this line should not be modified
-WiFiEventHandler WEH_SS;
-WiFiEventHandler WEH_SD;
-WiFiEventHandler WEH_GI;
-WiFiEventHandler WEH_AStart;
-WiFiEventHandler WEH_AStop;
-
 unsigned long lastMessageTimeMillis = 0;
 unsigned long lastSentMillis = 0;
 boolean wifiConnected = false;
@@ -202,11 +196,11 @@ void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 #endif
     delay(100);
 #ifdef ESP8266
-    WEH_SS = WiFi.onStationModeConnected(Arduino_Event_Wifi_Sta_Start);
-    WEH_SD = WiFi.onStationModeDisconnected(Arduino_Event_Wifi_Sta_Disconnected);
-    WEH_GI = WiFi.onStationModeGotIP(Arduino_Event_Wifi_Sta_Got_IP);
-    WEH_AStart = WiFi.onSoftAPModeStationConnected(Arduino_Event_Wifi_Ap_Start);
-    WEH_AStop = WiFi.onSoftAPModeStationDisconnected(Arduino_Event_Wifi_Ap_Stop);
+    WiFi.onStationModeConnected(Arduino_Event_Wifi_Sta_Start);
+    WiFi.onStationModeDisconnected(Arduino_Event_Wifi_Sta_Disconnected);
+    WiFi.onStationModeGotIP(Arduino_Event_Wifi_Sta_Got_IP);
+    WiFi.onSoftAPModeStationConnected(Arduino_Event_Wifi_Ap_Start);
+    WiFi.onSoftAPModeStationDisconnected(Arduino_Event_Wifi_Ap_Stop);
 #else
     WiFi.onEvent(WiFiEvent);
 #endif
@@ -218,10 +212,15 @@ void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 
     if (mode == Mode::createAP) {
         Serial.printf("[EWD] creating AP called %s with password %s \n", APName, APPassword);
-
+#ifdef ESP8266
+        WiFi.mode(WIFI_AP);
+#endif
         WiFi.softAP(APName, APPassword);
     }
     if (mode == Mode::connectToNetwork) {
+#ifdef ESP8266
+        WiFi.mode(WIFI_STA);
+#endif
         if (strlen(routerPassword) < 1) {
             Serial.printf("[EWD]  Attempting to connect to open network %s \n", routerName);
             WiFi.begin(routerName);
