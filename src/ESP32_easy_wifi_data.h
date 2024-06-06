@@ -38,6 +38,12 @@ boolean debugPrint = false;
 #endif
 
 // variables below this line should not be modified
+WiFiEventHandler WEH_SS;
+WiFiEventHandler WEH_SD;
+WiFiEventHandler WEH_GI;
+WiFiEventHandler WEH_AStart;
+WiFiEventHandler WEH_AStop;
+
 unsigned long lastMessageTimeMillis = 0;
 unsigned long lastSentMillis = 0;
 boolean wifiConnected = false;
@@ -191,14 +197,16 @@ void sendMessage()
 
 void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 {
+#ifndef ESP8266
     WiFi.disconnect(true, true);
+#endif
     delay(100);
 #ifdef ESP8266
-    WiFi.onStationModeConnected(Arduino_Event_Wifi_Sta_Start);
-    WiFi.onStationModeDisconnected(Arduino_Event_Wifi_Sta_Disconnected);
-    WiFi.onStationModeGotIP(Arduino_Event_Wifi_Sta_Got_IP);
-    WiFi.onSoftAPModeStationConnected(Arduino_Event_Wifi_Ap_Start);
-    WiFi.onSoftAPModeStationDisconnected(Arduino_Event_Wifi_Ap_Stop);
+    WEH_SS = WiFi.onStationModeConnected(Arduino_Event_Wifi_Sta_Start);
+    WEH_SD = WiFi.onStationModeDisconnected(Arduino_Event_Wifi_Sta_Disconnected);
+    WEH_GI = WiFi.onStationModeGotIP(Arduino_Event_Wifi_Sta_Got_IP);
+    WEH_AStart = WiFi.onSoftAPModeStationConnected(Arduino_Event_Wifi_Ap_Start);
+    WEH_AStop = WiFi.onSoftAPModeStationDisconnected(Arduino_Event_Wifi_Ap_Stop);
 #else
     WiFi.onEvent(WiFiEvent);
 #endif
