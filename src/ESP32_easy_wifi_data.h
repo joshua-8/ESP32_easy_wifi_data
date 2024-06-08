@@ -1,3 +1,5 @@
+// most recent code for the attempt to use non deprecated wifi callbacks
+// https://github.com/joshua-8/ESP32_easy_wifi_data/commit/b99745ba289d8dcc9015030a21e605aefbf8a6cd
 #ifndef _ESP32_easy_wifi_data_H_
 #define _ESP32_easy_wifi_data_H_
 
@@ -51,53 +53,19 @@ void (*sendCallback)(void);
 void (*receiveCallback)(void);
 
 #ifdef ESP8266
-void Arduino_Event_Wifi_Sta_Start(const WiFiEventStationModeConnected& event)
-{
-    if (debugPrint)
-        Serial.println("WiFi client started");
-}
+#define ARDUINO_EVENT_WIFI_READY 255 // no esp8266 equivalent
+#define ARDUINO_EVENT_WIFI_STA_START WIFI_EVENT_STAMODE_CONNECTED
+#define ARDUINO_EVENT_WIFI_STA_STOP 254
+#define ARDUINO_EVENT_WIFI_STA_CONNECTED 253
+#define ARDUINO_EVENT_WIFI_STA_DISCONNECTED WIFI_EVENT_STAMODE_DISCONNECTED
+#define ARDUINO_EVENT_WIFI_STA_GOT_IP WIFI_EVENT_STAMODE_GOT_IP
+#define ARDUINO_EVENT_WIFI_AP_START WIFI_EVENT_SOFTAPMODE_STACONNECTED
+#define ARDUINO_EVENT_WIFI_AP_STOP WIFI_EVENT_SOFTAPMODE_STADISCONNECTED
+#define ARDUINO_EVENT_WIFI_AP_STACONNECTED 252
+#define ARDUINO_EVENT_WIFI_AP_STADISCONNECTED 251
+#define ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED 250
+#endif
 
-void Arduino_Event_Wifi_Sta_Disconnected(const WiFiEventStationModeDisconnected& event)
-{
-    if (debugPrint)
-        Serial.println("Disconnected from WiFi access point");
-
-    if (wifiConnected) {
-        if (debugPrint)
-            Serial.println("[EWD]  Attempting to reconnect");
-        WiFi.reconnect();
-    }
-    wifiConnected = false;
-}
-
-void Arduino_Event_Wifi_Sta_Got_IP(const WiFiEventStationModeGotIP& event)
-{
-    if (debugPrint)
-        Serial.print("Obtained IP address: ");
-    Serial.println(WiFi.localIP());
-    wifiConnected = true;
-    udp.begin(routerPort);
-}
-
-void Arduino_Event_Wifi_Ap_Start(const WiFiEventSoftAPModeStationConnected& event)
-{
-    if (debugPrint)
-        Serial.println("WiFi access point started");
-
-    udp.begin(APPort);
-    if (debugPrint)
-        Serial.println("[EWD]  UDP begin - AP mode");
-    wifiConnected = true;
-}
-
-void Arduino_Event_Wifi_Ap_Stop(const WiFiEventSoftAPModeStationDisconnected& event)
-{
-    // not sure what causes this, if you see it, it's probably bad, try restarting the esp32
-    if (debugPrint)
-        Serial.println("WiFi access point stopped");
-}
-
-#else // ESP32
 void WiFiEvent(WiFiEvent_t event)
 {
 
@@ -170,7 +138,6 @@ void WiFiEvent(WiFiEvent_t event)
         break;
     }
 }
-#endif
 
 void sendMessage()
 {
@@ -191,19 +158,10 @@ void sendMessage()
 
 void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 {
-#ifndef ESP8266
     WiFi.disconnect(true, true);
-#endif
     delay(100);
-#ifdef ESP8266
-    WiFi.onStationModeConnected(Arduino_Event_Wifi_Sta_Start);
-    WiFi.onStationModeDisconnected(Arduino_Event_Wifi_Sta_Disconnected);
-    WiFi.onStationModeGotIP(Arduino_Event_Wifi_Sta_Got_IP);
-    WiFi.onSoftAPModeStationConnected(Arduino_Event_Wifi_Ap_Start);
-    WiFi.onSoftAPModeStationDisconnected(Arduino_Event_Wifi_Ap_Stop);
-#else
+
     WiFi.onEvent(WiFiEvent);
-#endif
 
     if (debugPrint)
         Serial.println("[EWD] starting setupWifi()");
@@ -212,15 +170,10 @@ void setupWifi(void (*_recvCB)(void), void (*_sendCB)(void))
 
     if (mode == Mode::createAP) {
         Serial.printf("[EWD] creating AP called %s with password %s \n", APName, APPassword);
-#ifdef ESP8266
-        WiFi.mode(WIFI_AP);
-#endif
+
         WiFi.softAP(APName, APPassword);
     }
     if (mode == Mode::connectToNetwork) {
-#ifdef ESP8266
-        WiFi.mode(WIFI_STA);
-#endif
         if (strlen(routerPassword) < 1) {
             Serial.printf("[EWD]  Attempting to connect to open network %s \n", routerName);
             WiFi.begin(routerName);
