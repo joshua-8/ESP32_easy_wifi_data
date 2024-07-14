@@ -13,4 +13,6 @@ Now works with ESP8266 chips too! (After Version 1.2.0)
 
 used by https://github.com/rcmgames/rcmv2 (hardware and software for small wifi controlled robots)
 
-[This](https://github.com/RCMgames/RCMDS) is a program that can be used for sending data to this library from a computer or Android phone.
+[This](https://github.com/RCMgames/RCMDS) and [this](https://github.com/RCMgames/RCMDS-new) are programs that can be used for sending data to this library from a computer or Android phone.
+
+[easy_wifi_data_sender](https://github.com/joshua-8/easy_wifi_data_sender) is an Arduino library that can be used for sending data to this library from another ESP32 or ESP8266.
