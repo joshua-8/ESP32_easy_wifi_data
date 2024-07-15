@@ -15,4 +15,4 @@ used by https://github.com/rcmgames/rcmv2 (hardware and software for small wifi 
 
 [This](https://github.com/RCMgames/RCMDS) and [this](https://github.com/RCMgames/RCMDS-new) are programs that can be used for sending data to this library from a computer or Android phone.
 
-[easy_wifi_data_sender](https://github.com/joshua-8/easy_wifi_data_sender) is an Arduino library that can be used for sending data to this library from another ESP32 or ESP8266.
+Now allows two boards to communicate with eachother (after version 1.4.0), see examples.
