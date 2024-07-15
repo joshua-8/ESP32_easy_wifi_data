@@ -7,7 +7,7 @@ Simple library for sending and receiving booleans, bytes, integers, and float va
 
 If you set up port forwarding on your wifi router you can control your esp32 from anywhere!
 
-Note: Communication with this library is not secured, don't use it to control anything dangerous or private.
+Note: Communication with this library is not secured or error checked, don't use it to control anything dangerous or private.
 
 Now works with ESP8266 chips too! (After Version 1.2.0)
 

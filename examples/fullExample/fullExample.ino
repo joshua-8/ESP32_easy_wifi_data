@@ -1,7 +1,7 @@
 /*
     An example for ESP32_easy_wifi_data library
     https://github.com/joshua-8/ESP32_easy_wifi_data
-    This example shows every option and function of the library but is not meant to do anything useful if run as is.
+    This example shows every option and function of the library BUT IS NOT MEANT TO DO ANYTHING USEFUL IF RUN AS IS.
     by joshua-8, 2021-2022, MIT License
 */
 #include <Arduino.h>
@@ -12,7 +12,6 @@
 
 void setup()
 {
-    Serial.begin(9600);
 
     EWD::mode = EWD::Mode::connectToNetwork; // "connectToNetwork" or "createAP"(hotspot). default: connect to network
     EWD::signalLossTimeout = 1000; // connection times out if no signal after this many milliseconds (default: 1000 (= 1 sec))
@@ -24,6 +23,8 @@ void setup()
     EWD::APPort = 25210; // what port the esp32 communicates on if it makes its own network (default 25210)
     EWD::blockSimultaneousConnections = true; // block more than one client from connecting at a time (default: true)
     EWD::debugPrint = false; // print ip address and other information to the serial monitor (default: false)
+    EWD::communicateWithIP = "192.168.25.21"; // if you want to contact another ESP32 running this library enter the IP address of the other esp32 here and this program will reach out and start communication with the given IP address (set to null or an empty string to disable)
+    EWD::resendTimeout = 100; // how many milliseconds to wait before resending a message if it was not replied to (should be less than signalLossTimeout so that the connection is not given up on if just one packet is dropped).
 
     EWD::setupWifi(dataReceiveCallback, dataSendCallback); // this function connects to wifi, it may take up to 10 seconds, give it the names of dataReceiveCallback, dataSendCallback (functions with data sending and data receiving commands)
 }

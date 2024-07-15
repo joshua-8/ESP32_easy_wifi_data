@@ -29,6 +29,9 @@ const char* APPassword = "password";
 int routerPort = 25210;
 int APPort = 25210;
 
+const char* communicateWithIP = NULL;
+unsigned long resendTimeout = 100;
+
 boolean blockSimultaneousConnections = true;
 boolean debugPrint = false;
 
@@ -145,11 +148,22 @@ void sendMessage()
     wifiArrayCounter = 0;
     sendCallback();
 
+    if (communicateWithIP == NULL || strlen(communicateWithIP) == 0) {
 #ifdef ESP8266
-    udp.beginPacket(udp.remoteIP(), udp.remotePort());
+        udp.beginPacket(udp.remoteIP(), udp.remotePort());
 #else
-    udp.beginPacket();
+        udp.beginPacket();
 #endif
+
+    } else {
+
+#ifdef ESP8266
+        udp.beginPacket(communicateWithIP, routerPort);
+#else
+        udp.beginPacket(communicateWithIP, routerPort);
+#endif
+    }
+
     for (byte i = 0; i < min(wifiArrayCounter, EWDmaxWifiSendBufSize); i++) {
         udp.write(dataToSend[i]);
     }
@@ -217,6 +231,12 @@ void runWifiCommunication()
         receiveCallback();
 
         sendMessage();
+    }
+
+    if (communicateWithIP != NULL && strlen(communicateWithIP) > 0) {
+        if (millis() - lastSentMillis > resendTimeout) {
+            sendMessage();
+        }
     }
 }
 
