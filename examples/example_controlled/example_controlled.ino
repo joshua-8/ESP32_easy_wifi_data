@@ -4,6 +4,9 @@
  * This example is a simple wifi controlled "robot" that turns on the built in led when told to.
  */
 
+const int ledPin = 2;
+const int buttonPin = 0;
+
 boolean ledVal = false;
 boolean buttonVal = false;
 
@@ -20,16 +23,15 @@ void WifiDataToSend()
 
 void configWifi()
 {
-    EWD::mode = EWD::Mode::connectToNetwork;
-    EWD::routerName = "router";
-    EWD::routerPassword = "password";
-    EWD::routerPort = 25210;
-    EWD::debugPrint = true;
+    EWD::mode = EWD::Mode::createAP;
+    EWD::APPort = 25001;
+    EWD::APName = "esptest1";
+    EWD::APPassword = "password";
 }
 
 void setup()
 {
-    pinMode(2, OUTPUT);
+    pinMode(ledPin, OUTPUT);
     Serial.begin(115200);
     configWifi();
     EWD::setupWifi(WifiDataToParse, WifiDataToSend);
@@ -37,11 +39,11 @@ void setup()
 }
 void loop()
 {
-    buttonVal = digitalRead(0);
+    buttonVal = digitalRead(buttonPin);
     EWD::runWifiCommunication();
     if (EWD::newData()) {
         Serial.println("got new data");
     }
-    digitalWrite(2, ledVal);
+    digitalWrite(ledPin, ledVal);
     delay(10);
 }

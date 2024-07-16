@@ -3,6 +3,9 @@
  * This example is a simple controller that sends data to the example_controlled example of whether the built in button is pressed
  */
 
+const int ledPin = 2;
+const int buttonPin = 0;
+
 boolean buttonVal = false;
 boolean ledVal = false;
 
@@ -20,16 +23,16 @@ void WifiDataToSend()
 void configWifi()
 {
     EWD::mode = EWD::Mode::connectToNetwork;
-    EWD::routerName = "router";
+    EWD::routerName = "esptest1";
     EWD::routerPassword = "password";
-    EWD::routerPort = 25210;
-    EWD::communicateWithIP = "192.168.137.112";
+    EWD::routerPort = 25001;
+    EWD::communicateWithIP = "192.168.4.1";
     EWD::debugPrint = true;
 }
 
 void setup()
 {
-    pinMode(2, OUTPUT);
+    pinMode(ledPin, OUTPUT);
     Serial.begin(115200);
     configWifi();
     EWD::setupWifi(WifiDataToParse, WifiDataToSend);
@@ -38,11 +41,11 @@ void setup()
 
 void loop()
 {
-    buttonVal = digitalRead(0);
+    buttonVal = digitalRead(buttonPin);
     EWD::runWifiCommunication();
     if (EWD::newData()) {
         Serial.println("got new data");
     }
-    digitalWrite(2, ledVal);
+    digitalWrite(ledPin, ledVal);
     delay(10);
 }
